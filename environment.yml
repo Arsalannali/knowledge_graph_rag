@@ -1,0 +1,21 @@
+name: rag-app
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip=23.1.2
+  - numpy=1.24.3
+  - pandas=2.0.2
+  - pip:
+    - langchain==0.0.267
+    - faiss-cpu==1.7.4
+    - pymupdf==1.22.5
+    - beautifulsoup4==4.12.2
+    - scrapy==2.9.0
+    - fastapi==0.99.1
+    - uvicorn==0.23.1
+    - pydantic==1.10.11
+    - neo4j==5.9.0
+    - chromadb==0.4.6
+    - ollama==0.1.2 

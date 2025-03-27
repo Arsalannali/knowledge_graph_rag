@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Application with Knowledge Graphs</title>
+    <!-- Add vis.js for knowledge graph visualization -->
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background-color: #2c3e50;
+            color: white;
+            padding: 1em;
+            margin-bottom: 2em;
+            border-radius: 5px;
+        }
+        
+        h1, h2 {
+            margin-bottom: 0.5em;
+        }
+        
+        .section {
+            margin-bottom: 2em;
+            padding: 1.5em;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .form-group {
+            margin-bottom: 1em;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5em;
+            font-weight: bold;
+        }
+        
+        input[type="text"], 
+        input[type="file"],
+        button {
+            padding: 0.5em;
+            border-radius: 3px;
+            border: 1px solid #ddd;
+            width: 100%;
+            max-width: 500px;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 0.7em;
+            margin-top: 0.5em;
+            font-weight: bold;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        #results {
+            min-height: 200px;
+            padding: 1em;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        
+        #knowledge-graph {
+            border: 1px solid #ddd;
+            min-height: 400px;
+            background-color: white;
+            border-radius: 3px;
+        }
+        
+        /* Added styles for knowledge graph */
+        #graph-container {
+            width: 100%;
+            height: 500px;
+        }
+        
+        .entity-card {
+            background-color: #f5f5f5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .entity-person {
+            border-left-color: #e74c3c;
+        }
+        
+        .entity-organization {
+            border-left-color: #f39c12;
+        }
+        
+        .entity-location {
+            border-left-color: #2ecc71;
+        }
+        
+        .sources-list {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+        
+        .entity-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .entity-tag {
+            background-color: #e8e8e8;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .entity-tag.person {
+            background-color: #fadbd8;
+        }
+        
+        .entity-tag.organization {
+            background-color: #fef9e7;
+        }
+        
+        .entity-tag.location {
+            background-color: #d5f5e3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>RAG Application with Knowledge Graphs</h1>
+            <p>Upload PDFs, scrape websites, and search using LLM-powered retrieval.</p>
+        </header>
+        
+        <div class="section">
+            <h2>Upload PDF</h2>
+            <div class="form-group">
+                <label for="pdf-upload">Select PDF file:</label>
+                <input type="file" id="pdf-upload" accept=".pdf">
+                <button id="upload-btn">Upload and Process</button>
+            </div>
+            <div id="pdf-status"></div>
+        </div>
+        
+        <div class="section">
+            <h2>Scrape Website</h2>
+            <div class="form-group">
+                <label for="website-url">Website URL:</label>
+                <input type="text" id="website-url" placeholder="https://example.com">
+                <button id="scrape-btn">Scrape Website</button>
+            </div>
+            <div id="scrape-status"></div>
+        </div>
+        
+        <div class="section">
+            <h2>Search Knowledge</h2>
+            <div class="form-group">
+                <label for="search-query">Ask a question:</label>
+                <input type="text" id="search-query" placeholder="What is...?">
+                <button id="search-btn">Search</button>
+            </div>
+            <h3>Results:</h3>
+            <div id="results">
+                <p>Search results will appear here.</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Knowledge Graph</h2>
+            <div id="knowledge-graph">
+                <div id="graph-container"></div>
+                <div id="graph-legend" style="margin-top: 10px;">
+                    <b>Legend:</b>
+                    <span class="entity-tag person">Person</span>
+                    <span class="entity-tag organization">Organization</span>
+                    <span class="entity-tag location">Location</span>
+                    <span class="entity-tag">Document</span>
+                </div>
+                <button id="refresh-graph-btn" style="margin-top: 10px;">Refresh Graph</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        
+        // PDF Upload
+        document.getElementById('upload-btn').addEventListener('click', async () => {
+            const fileInput = document.getElementById('pdf-upload');
+            const statusDiv = document.getElementById('pdf-status');
+            
+            if (!fileInput.files.length) {
+                statusDiv.innerHTML = '<p style="color: red;">Please select a PDF file.</p>';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            statusDiv.innerHTML = '<p>Uploading and processing...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/upload-pdf`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = `<p style="color: green;">Success: ${data.message}</p>`;
+                    // Refresh knowledge graph after upload
+                    loadKnowledgeGraph();
+                } else {
+                    statusDiv.innerHTML = `<p style="color: red;">Error: ${data.detail || 'Unknown error'}</p>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        });
+        
+        // Website Scraping
+        document.getElementById('scrape-btn').addEventListener('click', async () => {
+            const urlInput = document.getElementById('website-url');
+            const statusDiv = document.getElementById('scrape-status');
+            const url = urlInput.value.trim();
+            
+            if (!url) {
+                statusDiv.innerHTML = '<p style="color: red;">Please enter a URL.</p>';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('url', url);
+            
+            statusDiv.innerHTML = '<p>Initiating scraping...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/scrape-website`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.innerHTML = `<p style="color: green;">Success: ${data.message}</p>`;
+                } else {
+                    statusDiv.innerHTML = `<p style="color: red;">Error: ${data.detail || 'Unknown error'}</p>`;
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        });
+        
+        // Search
+        document.getElementById('search-btn').addEventListener('click', async () => {
+            const queryInput = document.getElementById('search-query');
+            const resultsDiv = document.getElementById('results');
+            const query = queryInput.value.trim();
+            
+            if (!query) {
+                resultsDiv.innerHTML = '<p style="color: red;">Please enter a search query.</p>';
+                return;
+            }
+            
+            resultsDiv.innerHTML = '<p>Searching...</p>';
+            
+            try {
+                const response = await fetch(`${API_URL}/search?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Format the results with answer, sources, and entities
+                    let resultsHTML = `<h4>Answer:</h4><p>${data.answer}</p>`;
+                    
+                    if (data.sources && data.sources.length) {
+                        resultsHTML += '<h4>Sources:</h4><ul class="sources-list">';
+                        data.sources.forEach(source => {
+                            resultsHTML += `<li>${source}</li>`;
+                        });
+                        resultsHTML += '</ul>';
+                    }
+                    
+                    if (data.related_entities && data.related_entities.length) {
+                        resultsHTML += '<h4>Related Entities:</h4><div class="entity-list">';
+                        data.related_entities.forEach(entity => {
+                            const entityClass = entity.type.toLowerCase();
+                            resultsHTML += `<span class="entity-tag ${entityClass}">${entity.entity} (${entity.type})</span>`;
+                        });
+                        resultsHTML += '</div>';
+                    }
+                    
+                    resultsDiv.innerHTML = resultsHTML;
+                } else {
+                    resultsDiv.innerHTML = `<p style="color: red;">Error: ${data.detail || 'Unknown error'}</p>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        });
+        
+        // Knowledge Graph Visualization
+        let network = null;
+        
+        function loadKnowledgeGraph() {
+            const container = document.getElementById('graph-container');
+            
+            try {
+                fetch(`${API_URL}/knowledge-graph`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.nodes || !data.edges || data.nodes.length === 0) {
+                            container.innerHTML = '<p style="padding: 1em;">No knowledge graph data available yet. Upload PDFs or scrape websites to build the graph.</p>';
+                            return;
+                        }
+                        
+                        // Process data for vis.js
+                        const nodes = new vis.DataSet(
+                            data.nodes.map(node => ({
+                                id: node.id,
+                                label: node.name,
+                                group: node.label  // Use the label as group for coloring
+                            }))
+                        );
+                        
+                        const edges = new vis.DataSet(
+                            data.edges.map(edge => ({
+                                from: edge.from,
+                                to: edge.to,
+                                label: edge.label,
+                                arrows: "to"
+                            }))
+                        );
+                        
+                        // Create network
+                        const networkData = { nodes, edges };
+                        const options = {
+                            nodes: {
+                                shape: 'dot',
+                                size: 16,
+                                font: {
+                                    size: 12,
+                                    face: 'Tahoma'
+                                }
+                            },
+                            edges: {
+                                width: 1,
+                                color: { inherit: 'both' },
+                                smooth: {
+                                    type: 'continuous'
+                                }
+                            },
+                            physics: {
+                                stabilization: false,
+                                barnesHut: {
+                                    gravitationalConstant: -80000,
+                                    springConstant: 0.001,
+                                    springLength: 200
+                                }
+                            },
+                            groups: {
+                                Person: { color: { background: '#e74c3c', border: '#c0392b' } },
+                                Organization: { color: { background: '#f39c12', border: '#d35400' } },
+                                Location: { color: { background: '#2ecc71', border: '#27ae60' } },
+                                Document: { color: { background: '#3498db', border: '#2980b9' } }
+                            }
+                        };
+                        
+                        // Clear previous network
+                        container.innerHTML = '';
+                        
+                        // Create new network
+                        network = new vis.Network(container, networkData, options);
+                    })
+                    .catch(error => {
+                        container.innerHTML = `<p style="padding: 1em; color: red;">Error loading knowledge graph: ${error.message}</p>`;
+                    });
+            } catch (error) {
+                container.innerHTML = `<p style="padding: 1em; color: red;">Error initializing knowledge graph: ${error.message}</p>`;
+            }
+        }
+        
+        // Refresh graph button
+        document.getElementById('refresh-graph-btn').addEventListener('click', loadKnowledgeGraph);
+        
+        // Load the knowledge graph when the page loads
+        window.addEventListener('load', loadKnowledgeGraph);
+    </script>
+</body>
+</html> 
