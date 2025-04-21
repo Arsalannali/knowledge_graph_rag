@@ -1,67 +1,150 @@
-version: '3.8'
+version: '3.8'  # Docker Compose file format version
 
 services:
-  # Frontend UI service
+  # Frontend UI service - serves static HTML/CSS/JS files
   frontend:
-    image: nginx:alpine
+    image: nginx:alpine  # Lightweight web server for static content
     ports:
-      - "3000:80"
+      - "3000:80"  # Map host port 3000 to container port 80
     volumes:
-      - ./frontend:/usr/share/nginx/html
+      - ./frontend:/usr/share/nginx/html  # Mount frontend files to nginx serving directory
+      - ./config/frontend:/etc/nginx/conf.d
     depends_on:
-      - backend
+      - backend  # Start only after backend is running
+    networks:
+      - rag-network
+    restart: unless-stopped
   
-  # Backend API service (FastAPI)
+  # Backend API service (FastAPI) - handles business logic and API endpoints
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8000:8000"  # Map host port 8000 to container port 8000
     volumes:
-      - ./data:/app/data
+      - ./backend:/app
+      - ./config/backend:/app/config
       - ./uploads:/app/uploads
-    environment:
-      - OLLAMA_HOST=http://ollama:11434
-      - NEO4J_URI=neo4j://neo4j:7687
+      - ./docs:/app/docs
+      - ./data:/app/data
+      - ./chroma_db:/app/chroma_db
+    environment:  # Environment variables for configuration
+      - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=password
-    depends_on:
-      - neo4j
-      - ollama
+      - OLLAMA_API_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama2
+      - LOG_LEVEL=INFO
+    depends_on:  # Service dependencies
+      - neo4j  # Start only after neo4j is running
+      - ollama  # Start only after ollama is running
+    networks:
+      - rag-network
+    restart: unless-stopped
   
-  # Neo4j Database for Knowledge Graph
+  # Neo4j Database for Knowledge Graph - stores entity relationships
   neo4j:
-    image: neo4j:5.9.0
+    image: neo4j:5.9.0  # Neo4j graph database image
     ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt
+      - "7474:7474"  # HTTP interface for Neo4j Browser
+      - "7687:7687"  # Bolt protocol port for Neo4j connections
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+      - neo4j-conf:/var/lib/neo4j/conf
     environment:
       - NEO4J_AUTH=neo4j/password
-    volumes:
-      - neo4j_data:/data
+      - NEO4J_dbms_memory_pagecache_size=1G
+      - NEO4J_dbms_memory_heap_initial__size=1G
+      - NEO4J_dbms_memory_heap_max__size=1G
+      - NEO4J_server_default__listen__address=0.0.0.0
+    networks:
+      - rag-network
+    restart: unless-stopped
   
-  # Ollama for LLM (Mistral)
+  # Ollama for LLM (Mistral) - provides local large language model service
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:latest  # Ollama image for running LLMs locally
     ports:
-      - "11434:11434"
+      - "11434:11434"  # Ollama API port
     volumes:
-      - ollama_models:/root/.ollama
-    command: serve
+      - ./data/ollama:/root/.ollama
+      - ./config/ollama:/etc/ollama
+    networks:
+      - rag-network
+    restart: unless-stopped
   
-  # Web Scraping Service
+  # Web Scraping Service - crawls websites and extracts content
   scraper:
-    build: ./scraper
+    build:
+      context: ./scraper
+      dockerfile: Dockerfile
     volumes:
-      - ./data:/app/data
+      - ./scraper:/app
+      - ./config/scraper:/app/config
+      - ./data/scraped:/app/data/scraped
     environment:
-      - OUTPUT_DIR=/app/data/scraped
+      - LOG_LEVEL=INFO
+    networks:
+      - rag-network
+    restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus:/etc/prometheus
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./config/grafana:/etc/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - rag-network
+    restart: unless-stopped
+
+# Named volumes for data persistence
 volumes:
-  neo4j_data:
-  ollama_models:
+  neo4j-data:  # Volume for Neo4j database data
+  neo4j-logs:  # Volume for Neo4j logs
+  neo4j-conf:  # Volume for Neo4j configuration
+  ollama-data:  # Volume for Ollama model files
+  prometheus-data:
+  grafana-data:
   
 # Note: You'll need to create the following directories:
 # - frontend/ - For your HTML/CSS/JS frontend
 # - backend/ - For your FastAPI application
 # - scraper/ - For your BeautifulSoup/Scrapy scraping service
 # - data/scraped/ - For storing scraped content 
+
+networks:
+  rag-network:
+    driver: bridge
+  
+# Note: You'll need to create the following directories:
+# - config/frontend/ - For frontend nginx configuration
+# - config/backend/ - For backend configuration
+# - config/scraper/ - For scraper configuration
+# - data/neo4j/ - For Neo4j database data
+# - data/ollama/ - For Ollama model files
+# - data/scraped/ - For storing scraped content
+# - config/neo4j/ - For Neo4j configuration
+# - config/ollama/ - For Ollama configuration
+# - config/prometheus/ - For prometheus configuration
+# - config/grafana/ - For grafana configuration
+# - data/prometheus/ - For prometheus data
+# - data/grafana/ - For grafana data 

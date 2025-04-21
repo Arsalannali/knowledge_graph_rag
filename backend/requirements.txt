@@ -1,15 +1,16 @@
-fastapi==0.99.1
-uvicorn==0.23.1
-pydantic==1.10.11
-langchain==0.0.267
-faiss-cpu==1.7.4
-pymupdf==1.22.5
-neo4j==5.9.0
-chromadb==0.4.6
-ollama==0.1.2
-python-multipart==0.0.6
-aiofiles
-requests==2.31.0
-beautifulsoup4==4.12.2
-numpy==1.24.3
-langchain-community==0.0.5 
+fastapi==0.99.1        # Web framework for building APIs
+uvicorn==0.23.1        # ASGI server for FastAPI
+pydantic==1.10.11      # Data validation and settings management
+langchain==0.0.267     # Framework for LLM applications
+faiss-cpu==1.7.4       # Vector similarity search library
+pymupdf==1.22.5        # PDF processing library
+neo4j==5.9.0           # Neo4j database driver
+chromadb==0.4.6        # Vector database
+ollama==0.1.2          # Interface for Ollama LLM
+python-multipart==0.0.6 # For handling form data and file uploads
+aiofiles              # Asynchronous file operations
+requests==2.31.0       # HTTP client library
+beautifulsoup4==4.12.2 # HTML parsing library
+numpy==1.24.3          # Numerical computing library
+langchain-community==0.0.5 # Community extensions for LangChain
+langchain-ollama==0.2.2 # Ollama integration for LangChain 

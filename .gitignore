@@ -1,14 +1,16 @@
-# Byte-compiled / optimized / DLL files
+# Python compiled files and caches
 __pycache__/
 *.py[cod]
 *$py.class
+backend/cache/
+cache/
 
-# Distribution / packaging
+# Distribution and packaging directories
 dist/
 build/
 *.egg-info/
 
-# Virtual environments
+# Virtual environment directories - these contain local dependencies
 venv/
 env/
 ENV/
@@ -16,37 +18,48 @@ ENV/
 .venv
 .conda/
 
-# Local development settings
+# Local environment settings - contain sensitive information
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
-# Docker
+# Docker configuration
 .dockerignore
 
-# Logs
+# Log files
 logs/
 *.log
 
-# Database files
+# Database files - exclude local database files
 *.db
 *.sqlite3
 
-# Data
+# Data directories - use .gitkeep to maintain empty directories
 data/*
 !data/.gitkeep
 uploads/*
 !uploads/.gitkeep
-backend/chroma_db/
-backend/uploads/
+backend/chroma_db/   # ChromaDB vector database files
+backend/uploads/     # Backend upload directory
+backend/docs_actual/ # Actual document storage
+backend/docs/        # Document storage
 
 # IDE specific files
-.idea/
-.vscode/
-*.swp
-*.swo
+.idea/   # JetBrains IDE
+.vscode/ # Visual Studio Code
+*.swp    # Vim swap files
+*.swo    # Vim swap files
 
-# OS specific files
-.DS_Store
-Thumbs.db 
+# Operating system specific files
+.DS_Store   # macOS
+Thumbs.db   # Windows
+
+# Neo4j data directory
+neo4j/
+
+# Config directory which may contain sensitive information
+config/
+
+# Scripts directory (may contain sensitive information)
+scripts/ 
